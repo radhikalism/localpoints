@@ -2,41 +2,138 @@ Ext.Loader.setConfig({enabled:true});
 Ext.Loader.setPath('Ext.ux', '../js/ux');
 Ext.require('Ext.ux.layout.Center');
 
-sampleData = [['Foo', '', '', ''], ['Bar', '', '', '']]
+Ext.define('Layer', {
+        extend: 'Ext.data.Model',
+        idgen: 'uuid',
+        fields: [{name: 'name', type: 'string'},
+                 {name: 'features', type: 'string'},
+                 {name: 'created', type: 'date'},
+                 {name: 'updated', type: 'date'}],
+        proxy: { type: 'localstorage', id: 'localpoints-layers' }
+        })
 
-initMap = (map, layers, controls, zoomToExtent) ->
-        map.addLayers(layers)
-        map.addControls(controls)
+FROM_PROJ = new OpenLayers.Projection('EPSG:4326')
+OSM_PROJ = new OpenLayers.Projection('EPSG:900913')
+
+sampleData = [{name: 'Foo', features: '', created: '', updated: ''},
+              {name: 'Bar', features: '', created: '', updated: ''}]
+
+Ext.define('CurrentLayer', {
+        singleton: true,
+        record: null
+        })
+
+useTool = (selectedControlName, controls) ->
+        for name, control of controls
+                if (name == selectedControlName)
+                        control.activate()
+                else
+                        control.deactivate()
+
+usePointTool = (controls) ->
+        useTool('point', controls)
+
+useLineTool = (controls) ->
+        useTool('line', controls)
+
+usePolygonTool = (controls) ->
+        useTool('polygon', controls)
+
+usePathTool = (controls) ->
+        controls.modify.mode = OpenLayers.Control.ModifyFeature.RESHAPE;
+
+        useTool('modify', controls)
+
+useRotateTool = (controls) ->
+        controls.modify.mode = OpenLayers.Control.ModifyFeature.RESHAPE | OpenLayers.Control.ModifyFeature.ROTATE;
+        useTool('modify', controls)
+
+useResizeTool = (controls) ->
+        controls.modify.mode = OpenLayers.Control.ModifyFeature.RESHAPE | OpenLayers.Control.ModifyFeature.RESIZE;
+        useTool('modify', controls)
+
+useMoveTool = (controls) ->
+        controls.modify.mode = OpenLayers.Control.ModifyFeature.RESHAPE | OpenLayers.Control.ModifyFeature.DRAG;
+        useTool('modify', controls)
+
+useNoTool = (controls) ->
+        for name, control of controls
+                control.deactivate()
+
+disableToolbox = () ->
+        buttons = Ext.getCmp('tools-panel').query('button')
+        for button in buttons
+                button.blur()
+                button.disable()
+
+enableToolbox = () ->
+        buttons = Ext.getCmp('tools-panel').query('button')
+        for button in buttons
+                button.enable()
+
+deleteLayer = (store) ->
+        if (CurrentLayer.record != null)
+                store.remove([CurrentLayer.record])
+                CurrentLayer.record = null
+                disableToolbox()
+                useNoTool()
+                store.sync()
+                if (store.count() == 0)
+                        Ext.getCmp('layerDeleteButton').blur().disable()
+
+handleNewLayerRequest = (button, event, store) ->
+        store.add({name: 'Untitled', features: '', created: new Date(), updated: null})
+
+handleLayerRowSelectRequest = (selection, record, opts, store) ->
+        CurrentLayer.record = record[0]
+        enableToolbox()
+        if (Ext.getCmp('layerDeleteButton').isDisabled())
+                Ext.getCmp('layerDeleteButton').enable()
+
+
+initEditableMap = (map, baseLayer, vectorLayer, tools, zoomToExtent) ->
+        map.addLayer(baseLayer)
+        map.setBaseLayer(baseLayer)
+        map.addLayer(vectorLayer)
+        for name, control of tools
+                map.addControl(control)
         map.zoomToExtent(zoomToExtent)
         return map
 
-initBasicRestrictedMap = (id, layers, controls, zoomToExtent) ->
+initBasicRestrictedEditableMap = (id, vectorLayer, tools, zoomToExtent) ->
         options = { restrictedExtent: zoomToExtent }
         map = new OpenLayers.Map(id, options)
-        wms = new OpenLayers.Layer.WMS(
-                "OpenLayers WMS",
-                "http://vmap0.tiles.osgeo.org/wms/vmap0?",
-                {layers: 'basic'})
-        layers.push(wms)
-        return initMap(map, layers, controls, zoomToExtent)
+        osm = new OpenLayers.Layer.OSM()
+        return initEditableMap(map, osm, vectorLayer, tools, zoomToExtent)
 
-initEditorLayout = (store, layers, controls, zoomToExtent) ->
+initEditorLayout = (store, vectorLayer, tools, zoomToExtent) ->
         layersPanel = {
                 id: 'layers-panel',
                 title: 'Layers',
                 region: 'center',
                 autoScroll: true,
                 margins: '2 0 2 0',
-                items: [{tbar: [{text: "New"}, {text: "Delete", disabled: true}], border: false},
+                items: [{tbar: [{text: "New", handler: (b, e) -> handleNewLayerRequest(b, e, store)},
+                                {text: "Delete",
+                                id: "layerDeleteButton",
+                                focusOnToFront: false,
+                                enableToggle: false,
+                                disabled: true,
+                                listeners: {click: () -> deleteLayer(store)}}],
+                border: false},
                         {
                                 xtype: 'gridpanel',
                                 border: false,
+                                selType: 'rowmodel',
+                                plugins: [Ext.create('Ext.grid.plugin.CellEditing', {clicksToEdit: 2})]
                                 store: store,
+                                listeners: { selectionchange: (m, r, o) -> handleLayerRowSelectRequest(m, r, o, store) },
                                 columns: [{
                                         id: 'name',
                                         text: 'Name',
                                         sortable: true,
-                                        dataIndex: 'name'
+                                        dataIndex: 'name',
+                                        field: { xtype: 'textfield', allowBlank: false }
                                 },
                                 {
                                         id: 'updated',
@@ -71,19 +168,25 @@ initEditorLayout = (store, layers, controls, zoomToExtent) ->
                                 xtype: 'button',
                                 disabled: true,
                                 text: 'Point',
-                                enableToggle: true
+                                enableToggle: true,
+                                toggleGroup: 'toolbox',
+                                toggleHandler: (button, state) -> usePointTool(tools) if state
                                 },
                                 {
                                 xtype: 'button',
                                 disabled: true,
                                 text: 'Line',
-                                enableToggle: true
+                                enableToggle: true,
+                                toggleGroup: 'toolbox',
+                                toggleHandler: (button, state) -> useLineTool(tools) if state
                                 },
                                 {
                                 xtype: 'button',
                                 disabled: true,
                                 text: 'Polygon',
-                                enableToggle: true
+                                enableToggle: true,
+                                toggleGroup: 'toolbox',
+                                toggleHandler: (button, state) -> usePolygonTool(tools) if state
                                 }]
                         }]
                 }
@@ -105,25 +208,33 @@ initEditorLayout = (store, layers, controls, zoomToExtent) ->
                                 xtype: 'button',
                                 disabled: true,
                                 text: 'Path',
-                                enableToggle: true
+                                enableToggle: true,
+                                toggleGroup: 'toolbox',
+                                toggleHandler: (button, state) -> usePathTool(tools) if state
                                 },
                                 {
                                 xtype: 'button',
                                 disabled: true,
                                 text: 'Rotate',
-                                enableToggle: true
+                                enableToggle: true,
+                                toggleGroup: 'toolbox',
+                                toggleHandler: (button, state) -> useRotateTool(tools) if state
                                 },
                                 {
                                 xtype: 'button',
                                 disabled: true,
                                 text: 'Resize',
-                                enableToggle: true
+                                enableToggle: true,
+                                toggleGroup: 'toolbox',
+                                toggleHandler: (button, state) -> useResizeTool(tools) if state
                                 }
                                 {
                                 xtype: 'button',
                                 disabled: true,
                                 text: 'Move',
-                                enableToggle: true
+                                enableToggle: true,
+                                toggleGroup: 'toolbox',
+                                toggleHandler: (button, state) -> useMoveTool(tools) if state
                                 }]
                         }]
                 }
@@ -174,7 +285,8 @@ initEditorLayout = (store, layers, controls, zoomToExtent) ->
                         mapPanel],
                 renderTo: Ext.getBody()
         })
-        initBasicRestrictedMap('map-panel-body', layers, controls, zoomToExtent)
+        initBasicRestrictedEditableMap('map-panel-body', vectorLayer, tools, zoomToExtent)
+
 
 initEditor = (store) ->
         OpenLayers.Feature.Vector.style['default']['strokeWidth'] = '2'
@@ -184,27 +296,22 @@ initEditor = (store) ->
                 renderers: if renderer then [renderer] else OpenLayers.Layer.Vector.prototype.renderers
         });
 
-        lineTool = new OpenLayers.Control.DrawFeature(vectors,
-                OpenLayers.Handler.Path)
-
         featureModifier = new OpenLayers.Control.ModifyFeature(vectors)
-        featureModifier.mode = OpenLayers.Control.ModifyFeature.RESHAPE \
-                | OpenLayers.Control.ModifyFeature.DRAG \
-                | OpenLayers.Control.ModifyFeature.RESIZE \
-                | OpenLayers.Control.ModifyFeature.ROTATE
 
-        extent = new OpenLayers.Bounds(8, 44.5, 19, 50)
+        tools = {
+                point: new OpenLayers.Control.DrawFeature(vectors, OpenLayers.Handler.Point),
+                line: new OpenLayers.Control.DrawFeature(vectors, OpenLayers.Handler.Path),
+                polygon: new OpenLayers.Control.DrawFeature(vectors, OpenLayers.Handler.Polygon),
+                modify: featureModifier
+                }
 
-        initEditorLayout(store, [vectors], [lineTool, featureModifier], extent)
+        extent = new OpenLayers.Bounds(174.6, -37, 175, -36.8).transform(FROM_PROJ, OSM_PROJ)
+
+        initEditorLayout(store, vectors, tools, extent)
 
 Ext.onReady(() ->
-        sampleStore = Ext.create('Ext.data.ArrayStore', {
-                fields: [
-                        {name: 'name'},
-                        {name: 'features'}
-                        {name: 'created', type: 'date'}
-                        {name: 'updated', type: 'date'}
-                        ],
+        sampleStore = Ext.create('Ext.data.Store', {
+                model: 'Layer',
                 data: sampleData
                 })
         initEditor(sampleStore)
