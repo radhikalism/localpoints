@@ -341,7 +341,7 @@ initEditorLayout = (store, vectorLayer, tools, zoomToExtent) ->
 
     Ext.create('Ext.Viewport', {
         layout: 'border',
-        title: 'Ext Layout Browser',
+        title: 'localpoints on a map',
         items: [
             {
                 xtype: 'box',
