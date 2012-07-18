@@ -5,7 +5,8 @@ Ext.require('Ext.ux.layout.Center');
 Ext.define('Layer', {
         extend: 'Ext.data.Model',
         idgen: 'uuid',
-        fields: [{name: 'name', type: 'string'},
+        fields: [{name: 'id', type: 'string'},
+                 {name: 'name', type: 'string', defaultValue: 'Untitled'},
                  {name: 'features', type: 'string'},
                  {name: 'created', type: 'date'},
                  {name: 'updated', type: 'date'}],
@@ -14,9 +15,6 @@ Ext.define('Layer', {
 
 FROM_PROJ = new OpenLayers.Projection('EPSG:4326')
 OSM_PROJ = new OpenLayers.Projection('EPSG:900913')
-
-sampleData = [{name: 'Foo', features: '', created: '', updated: ''},
-              {name: 'Bar', features: '', created: '', updated: ''}]
 
 Ext.define('CurrentLayer', {
         singleton: true,
@@ -41,7 +39,6 @@ usePolygonTool = (controls) ->
 
 usePathTool = (controls) ->
         controls.modify.mode = OpenLayers.Control.ModifyFeature.RESHAPE;
-
         useTool('modify', controls)
 
 useRotateTool = (controls) ->
@@ -73,7 +70,7 @@ enableToolbox = () ->
 
 deleteLayer = (store) ->
         if (CurrentLayer.record != null)
-                store.remove([CurrentLayer.record])
+                store.remove(CurrentLayer.record)
                 CurrentLayer.record = null
                 disableToolbox()
                 useNoTool()
@@ -82,7 +79,9 @@ deleteLayer = (store) ->
                         Ext.getCmp('layerDeleteButton').blur().disable()
 
 handleNewLayerRequest = (button, event, store) ->
-        store.add({name: 'Untitled', features: '', created: new Date(), updated: null})
+        date = new Date()
+        store.add(store.create({name: 'Untitled', features: '', created: date, updated: date}))
+        store.sync()
 
 handleLayerRowSelectRequest = (selection, record, opts, store) ->
         CurrentLayer.record = record[0]
@@ -110,12 +109,13 @@ initEditorLayout = (store, vectorLayer, tools, zoomToExtent) ->
         layersPanel = {
                 id: 'layers-panel',
                 title: 'Layers',
-                region: 'center',
+                region: 'north',
+                height: 200,
                 autoScroll: true,
                 margins: '2 0 2 0',
-                items: [{tbar: [{text: "New", handler: (b, e) -> handleNewLayerRequest(b, e, store)},
-                                {text: "Delete",
-                                id: "layerDeleteButton",
+                items: [{tbar: [{text: 'New', handler: (b, e) -> handleNewLayerRequest(b, e, store)},
+                                {text: 'Delete',
+                                id: 'layerDeleteButton',
                                 focusOnToFront: false,
                                 enableToggle: false,
                                 disabled: true,
@@ -125,24 +125,25 @@ initEditorLayout = (store, vectorLayer, tools, zoomToExtent) ->
                                 xtype: 'gridpanel',
                                 border: false,
                                 selType: 'rowmodel',
-                                plugins: [Ext.create('Ext.grid.plugin.CellEditing', {clicksToEdit: 2})]
+                                plugins: [Ext.create('Ext.grid.plugin.CellEditing', {clicksToEdit: 2, listeners: {edit: {element: 'el', fn: (editor, e) ->
+                                        e.record.save() }}})]
                                 store: store,
                                 listeners: { selectionchange: (m, r, o) -> handleLayerRowSelectRequest(m, r, o, store) },
                                 columns: [{
-                                        id: 'name',
+                                        id: 'layer-name',
                                         text: 'Name',
                                         sortable: true,
                                         dataIndex: 'name',
                                         field: { xtype: 'textfield', allowBlank: false }
                                 },
                                 {
-                                        id: 'updated',
+                                        id: 'layer-updated',
                                         text: 'Updated',
                                         sortable: true,
                                         dataIndex: 'updated'
                                 },
                                 {
-                                        id: 'created',
+                                        id: 'layer-created',
                                         text: 'Created',
                                         sortable: true,
                                         dataIndex: 'created'
@@ -150,6 +151,46 @@ initEditorLayout = (store, vectorLayer, tools, zoomToExtent) ->
                         }]
 
         }
+
+        featuresPanel = {
+                id: 'features-panel',
+                title: 'Features',
+                region: 'center',
+                autoScroll: true,
+                margins: '2 0 2 0',
+                items: [{tbar: [{text: 'Delete'}, {text: 'Delete all'}], border: false},
+                        {
+                                xtype: 'gridpanel',
+                                border: false,
+                                selType: 'rowmodel',
+                                plugins: [Ext.create('Ext.grid.plugin.CellEditing', {clicksToEdit: 2})],
+                                columns: [{
+                                        id: 'feature-name',
+                                        text: 'Name',
+                                        sortable: true,
+                                        dataIndex: 'name',
+                                        field: { xtype: 'textfield', allowBlank: false }
+                                        },
+                                {
+                                        id: 'feature-type',
+                                        text: 'Type',
+                                        sortable: true,
+                                        dataIndex: 'type'
+                                },
+                                {
+                                        id: 'feature-updated',
+                                        text: 'Updated',
+                                        sortable: true,
+                                        dataIndex: 'updated'
+                                },
+                                {
+                                        id: 'feature-created',
+                                        text: 'Created',
+                                        sortable: true,
+                                        dataIndex: 'created'
+                                }]
+                        }],
+                }
 
         drawToolsPanel = {
                 id: 'draw-tools-panel',
@@ -280,7 +321,7 @@ initEditorLayout = (store, vectorLayer, tools, zoomToExtent) ->
                         width: 300,
                         minSize: 160,
                         maxSize: 400,
-                        items: [layersPanel, toolsPanel]
+                        items: [layersPanel, featuresPanel, toolsPanel]
                         },
                         mapPanel],
                 renderTo: Ext.getBody()
@@ -310,9 +351,9 @@ initEditor = (store) ->
         initEditorLayout(store, vectors, tools, extent)
 
 Ext.onReady(() ->
-        sampleStore = Ext.create('Ext.data.Store', {
+        layerStore = Ext.create('Ext.data.Store', {
                 model: 'Layer',
-                data: sampleData
+                autoLoad: true
                 })
-        initEditor(sampleStore)
+        initEditor(layerStore)
 )
