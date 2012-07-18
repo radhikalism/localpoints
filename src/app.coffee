@@ -71,13 +71,13 @@ enableToolbox = () ->
     for button in buttons
         button.enable()
 
-deleteLayer = (store, vectorLayer) ->
+deleteLayer = (store, vectorLayer, tools) ->
     if (CurrentLayer.record != null)
         store.remove(CurrentLayer.record)
         CurrentLayer.record = null
         disableToolbox()
         vectorLayer.removeAllFeatures()
-        useNoTool()
+        useNoTool(tools)
         store.sync()
         if (store.count() == 0)
             Ext.getCmp('layerDeleteButton').blur().disable()
@@ -135,7 +135,7 @@ initEditorLayout = (store, vectorLayer, tools, zoomToExtent) ->
                 focusOnToFront: false,
                 enableToggle: false,
                 disabled: true,
-                listeners: {click: () -> deleteLayer(store, vectorLayer)}
+                listeners: {click: () -> deleteLayer(store, vectorLayer, tools)}
             }],
         border: false
     }
