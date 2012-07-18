@@ -71,11 +71,12 @@ enableToolbox = () ->
     for button in buttons
         button.enable()
 
-deleteLayer = (store) ->
+deleteLayer = (store, vectorLayer) ->
     if (CurrentLayer.record != null)
         store.remove(CurrentLayer.record)
         CurrentLayer.record = null
         disableToolbox()
+        vectorLayer.removeAllFeatures()
         useNoTool()
         store.sync()
         if (store.count() == 0)
@@ -87,18 +88,19 @@ handleNewLayerRequest = (button, event, store) ->
     store.sync()
 
 handleLayerRowSelectRequest = (selection, record, opts, store, vectorLayer) ->
-    CurrentLayer.record = record[0]
     vectorLayer.removeAllFeatures()
-    geojson = CurrentLayer.record.get('features')
-    if (geojson != '')
-        features = OSM_GEO_JSON.read(geojson)
-        vectorLayer.addFeatures(features)
     enableToolbox()
     if (Ext.getCmp('layerDeleteButton').isDisabled())
         Ext.getCmp('layerDeleteButton').enable()
+    if (record.length > 0)
+        CurrentLayer.record = record[0]
+        geojson = record[0].get('features')
+        if (geojson != '')
+            features = OSM_GEO_JSON.read(geojson)
+            vectorLayer.addFeatures(features)
 
 saveCurrentLayerFeatures = (features) ->
-    if (CurrentLayer.record != null)
+    if (CurrentLayer.record != undefined and CurrentLayer.record != null and features.length > 0)
         geojson = OSM_GEO_JSON.write(features)
         CurrentLayer.record.set('features', geojson)
         CurrentLayer.record.save()
@@ -133,7 +135,7 @@ initEditorLayout = (store, vectorLayer, tools, zoomToExtent) ->
                 focusOnToFront: false,
                 enableToggle: false,
                 disabled: true,
-                listeners: {click: () -> deleteLayer(store)}
+                listeners: {click: () -> deleteLayer(store, vectorLayer)}
             }],
         border: false
     }
@@ -385,6 +387,7 @@ initEditorLayout = (store, vectorLayer, tools, zoomToExtent) ->
 
 
 initEditor = (store) ->
+    store.load()
     OpenLayers.Feature.Vector.style['default']['strokeWidth'] = '2'
 
     renderer = OpenLayers.Util.getParameters(window.location.href).renderer
@@ -408,7 +411,6 @@ initEditor = (store) ->
 Ext.onReady(() ->
     layerStore = Ext.create('Ext.data.Store', {
         model: 'Layer',
-        autoLoad: true
     })
     initEditor(layerStore)
 )
