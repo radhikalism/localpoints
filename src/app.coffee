@@ -1,5 +1,5 @@
 Ext.Loader.setConfig({enabled:true});
-Ext.Loader.setPath('Ext.ux', '../js/ux');
+Ext.Loader.setPath('Ext.ux', './js/ux');
 Ext.require('Ext.ux.layout.Center');
 
 Ext.define('Layer', {
