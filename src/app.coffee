@@ -15,8 +15,9 @@ Ext.define('Layer', {
     proxy: { type: 'localstorage', id: 'localpoints-layers' }
 })
 
-FROM_PROJ = new OpenLayers.Projection('EPSG:4326')
+DEFAULT_PROJ = new OpenLayers.Projection('EPSG:4326')
 OSM_PROJ = new OpenLayers.Projection('EPSG:900913')
+OSM_GEO_JSON = new OpenLayers.Format.GeoJSON({internalProjection: OSM_PROJ, externalProjection: DEFAULT_PROJ})
 
 Ext.define('CurrentLayer', {
     singleton: true,
@@ -85,17 +86,31 @@ handleNewLayerRequest = (button, event, store) ->
     store.add(store.create({name: 'Untitled', features: '', created: date, updated: date}))
     store.sync()
 
-handleLayerRowSelectRequest = (selection, record, opts, store) ->
+handleLayerRowSelectRequest = (selection, record, opts, store, vectorLayer) ->
     CurrentLayer.record = record[0]
+    vectorLayer.removeAllFeatures()
+    geojson = CurrentLayer.record.get('features')
+    if (geojson != '')
+        features = OSM_GEO_JSON.read(geojson)
+        vectorLayer.addFeatures(features)
     enableToolbox()
     if (Ext.getCmp('layerDeleteButton').isDisabled())
         Ext.getCmp('layerDeleteButton').enable()
 
+saveCurrentLayerFeatures = (features) ->
+    if (CurrentLayer.record != null)
+        geojson = OSM_GEO_JSON.write(features)
+        CurrentLayer.record.set('features', geojson)
+        CurrentLayer.record.save()
 
 initEditableMap = (map, baseLayer, vectorLayer, tools, zoomToExtent) ->
     map.addLayer(baseLayer)
     map.setBaseLayer(baseLayer)
     map.addLayer(vectorLayer)
+    save = (e) -> saveCurrentLayerFeatures(vectorLayer.features)
+    vectorLayer.events.register('featureadded', null, save)
+    vectorLayer.events.register('featureremoved', null, save)
+    vectorLayer.events.register('featuremodified', null, save)
     for name, control of tools
         map.addControl(control)
     map.zoomToExtent(zoomToExtent)
@@ -159,7 +174,7 @@ initEditorLayout = (store, vectorLayer, tools, zoomToExtent) ->
         ],
         store: store,
         listeners: {
-            selectionchange: (m, r, o) -> handleLayerRowSelectRequest(m, r, o, store)
+            selectionchange: (m, r, o) -> handleLayerRowSelectRequest(m, r, o, store, vectorLayer)
         },
         columns: layersColumns
     }
@@ -386,7 +401,7 @@ initEditor = (store) ->
         modify: featureModifier
     }
 
-    extent = new OpenLayers.Bounds(174.6, -37, 175, -36.8).transform(FROM_PROJ, OSM_PROJ)
+    extent = new OpenLayers.Bounds(174.6, -37, 175, -36.8).transform(DEFAULT_PROJ, OSM_PROJ)
 
     initEditorLayout(store, vectors, tools, extent)
 
