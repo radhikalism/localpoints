@@ -258,7 +258,7 @@ initEditorLayout = (store, vectorLayer, tools, zoomToExtent) ->
                         text: 'Point',
                         enableToggle: true,
                         toggleGroup: 'toolbox',
-                        toggleHandler: (button, state) -> usePointTool(tools) if state
+                        toggleHandler: (button, state) -> if (state) then usePointTool(tools) else useNoTool(tools)
                     },
                     {
                         xtype: 'button',
@@ -266,7 +266,7 @@ initEditorLayout = (store, vectorLayer, tools, zoomToExtent) ->
                         text: 'Line',
                         enableToggle: true,
                         toggleGroup: 'toolbox',
-                        toggleHandler: (button, state) -> useLineTool(tools) if state
+                        toggleHandler: (button, state) -> if (state) then useLineTool(tools) else useNoTool(tools)
                     },
                     {
                         xtype: 'button',
@@ -274,7 +274,7 @@ initEditorLayout = (store, vectorLayer, tools, zoomToExtent) ->
                         text: 'Polygon',
                         enableToggle: true,
                         toggleGroup: 'toolbox',
-                        toggleHandler: (button, state) -> usePolygonTool(tools) if state
+                        toggleHandler: (button, state) -> if (state) then usePolygonTool(tools) else useNoTool(tools)
                     }
                 ]
             }
@@ -302,7 +302,7 @@ initEditorLayout = (store, vectorLayer, tools, zoomToExtent) ->
                         text: 'Path',
                         enableToggle: true,
                         toggleGroup: 'toolbox',
-                        toggleHandler: (button, state) -> usePathTool(tools) if state
+                        toggleHandler: (button, state) -> if (state) then usePathTool(tools) else useNoTool(tools)
                     },
                     {
                         xtype: 'button',
@@ -310,7 +310,7 @@ initEditorLayout = (store, vectorLayer, tools, zoomToExtent) ->
                         text: 'Rotate',
                         enableToggle: true,
                         toggleGroup: 'toolbox',
-                        toggleHandler: (button, state) -> useRotateTool(tools) if state
+                        toggleHandler: (button, state) -> if (state) then useRotateTool(tools) else useNoTool(tools)
                     },
                     {
                         xtype: 'button',
@@ -318,7 +318,7 @@ initEditorLayout = (store, vectorLayer, tools, zoomToExtent) ->
                         text: 'Resize',
                         enableToggle: true,
                         toggleGroup: 'toolbox',
-                        toggleHandler: (button, state) -> useResizeTool(tools) if state
+                        toggleHandler: (button, state) -> if (state) then useResizeTool(tools) else useNoTool(tools)
                     },
                     {
                         xtype: 'button',
@@ -326,7 +326,7 @@ initEditorLayout = (store, vectorLayer, tools, zoomToExtent) ->
                         text: 'Move',
                         enableToggle: true,
                         toggleGroup: 'toolbox',
-                        toggleHandler: (button, state) -> useMoveTool(tools) if state
+                        toggleHandler: (button, state) -> if (state) then useMoveTool(tools) else useNoTool(tools)
                     }
                 ]
             }
