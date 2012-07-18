@@ -65,6 +65,7 @@ disableToolbox = () ->
     for button in buttons
         button.blur()
         button.disable()
+        button.toggle(false, true)
 
 enableToolbox = () ->
     buttons = Ext.getCmp('tools-panel').query('button')
