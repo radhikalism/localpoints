@@ -15,6 +15,19 @@ Ext.define('Layer', {
     proxy: { type: 'localstorage', id: 'localpoints-layers' }
 })
 
+Ext.define('Feature', {
+    extend: 'Ext.data.Model',
+    idgen: 'uuid',
+    fields: [
+        {name: 'id', type: 'string'},
+        {name: 'name', type: 'string', defaultValue: 'Feature'},
+        {name: 'type', type: 'string'},
+        {name: 'created', type: 'date'},
+        {name: 'updated', type: 'date'}
+    ],
+    proxy: { type: 'memory', id: 'localpoints-layerfeatures' }
+})
+
 DEFAULT_PROJ = new OpenLayers.Projection('EPSG:4326')
 OSM_PROJ = new OpenLayers.Projection('EPSG:900913')
 OSM_GEO_JSON = new OpenLayers.Format.GeoJSON({internalProjection: OSM_PROJ, externalProjection: DEFAULT_PROJ})
@@ -72,23 +85,23 @@ enableToolbox = () ->
     for button in buttons
         button.enable()
 
-deleteLayer = (store, vectorLayer, tools) ->
+deleteLayer = (layerStore, featureStore, vectorLayer, tools) ->
     if (CurrentLayer.record != null)
-        store.remove(CurrentLayer.record)
+        layerStore.remove(CurrentLayer.record)
         CurrentLayer.record = null
         disableToolbox()
         vectorLayer.removeAllFeatures()
         useNoTool(tools)
-        store.sync()
-        if (store.count() == 0)
+        layerStore.sync()
+        if (layerStore.count() == 0)
             Ext.getCmp('layerDeleteButton').blur().disable()
 
-handleNewLayerRequest = (button, event, store) ->
+handleNewLayerRequest = (button, event, layerStore) ->
     date = new Date()
-    store.add(store.create({name: 'Untitled', features: '', created: date, updated: date}))
-    store.sync()
+    layerStore.add(layerStore.create({name: 'Untitled', features: '', created: date, updated: date}))
+    layerStore.sync()
 
-handleLayerRowSelectRequest = (selection, record, opts, store, vectorLayer) ->
+handleLayerRowSelectRequest = (selection, record, opts, featureStore, vectorLayer) ->
     vectorLayer.removeAllFeatures()
     enableToolbox()
     if (Ext.getCmp('layerDeleteButton').isDisabled())
@@ -125,18 +138,18 @@ initBasicRestrictedEditableMap = (id, vectorLayer, tools, zoomToExtent) ->
     osm = new OpenLayers.Layer.OSM()
     return initEditableMap(map, osm, vectorLayer, tools, zoomToExtent)
 
-initEditorLayout = (store, vectorLayer, tools, zoomToExtent) ->
+initEditorLayout = (layerStore, featureStore, vectorLayer, tools, zoomToExtent) ->
 
     layersToolbar = {
         tbar: [
-            { text: 'New', handler: (b, e) -> handleNewLayerRequest(b, e, store) },
+            { text: 'New', handler: (b, e) -> handleNewLayerRequest(b, e, layerStore) },
             {
                 text: 'Delete',
                 id: 'layerDeleteButton',
                 focusOnToFront: false,
                 enableToggle: false,
                 disabled: true,
-                listeners: {click: () -> deleteLayer(store, vectorLayer, tools)}
+                listeners: {click: () -> deleteLayer(layerStore, featureStore, vectorLayer, tools)}
             }],
         border: false
     }
@@ -175,9 +188,9 @@ initEditorLayout = (store, vectorLayer, tools, zoomToExtent) ->
                 }
             })
         ],
-        store: store,
+        store: layerStore,
         listeners: {
-            selectionchange: (m, r, o) -> handleLayerRowSelectRequest(m, r, o, store, vectorLayer)
+            selectionchange: (m, r, o) -> handleLayerRowSelectRequest(m, r, o, featureStore, vectorLayer)
         },
         columns: layersColumns
     }
@@ -227,6 +240,7 @@ initEditorLayout = (store, vectorLayer, tools, zoomToExtent) ->
         xtype: 'gridpanel',
         border: false,
         selType: 'rowmodel',
+        store: featureStore,
         plugins: [Ext.create('Ext.grid.plugin.CellEditing', {clicksToEdit: 2})],
         columns: featuresColumns
     }
@@ -387,8 +401,8 @@ initEditorLayout = (store, vectorLayer, tools, zoomToExtent) ->
     initBasicRestrictedEditableMap('map-panel-body', vectorLayer, tools, zoomToExtent)
 
 
-initEditor = (store) ->
-    store.load()
+initEditor = (layerStore, featureStore) ->
+    layerStore.load()
     OpenLayers.Feature.Vector.style['default']['strokeWidth'] = '2'
 
     renderer = OpenLayers.Util.getParameters(window.location.href).renderer
@@ -407,11 +421,14 @@ initEditor = (store) ->
 
     extent = new OpenLayers.Bounds(174.6, -37, 175, -36.8).transform(DEFAULT_PROJ, OSM_PROJ)
 
-    initEditorLayout(store, vectors, tools, extent)
+    initEditorLayout(layerStore, featureStore, vectors, tools, extent)
 
 Ext.onReady(() ->
     layerStore = Ext.create('Ext.data.Store', {
         model: 'Layer',
     })
-    initEditor(layerStore)
+    featureStore = Ext.create('Ext.data.Store', {
+        model: 'Feature'
+    })
+    initEditor(layerStore, featureStore)
 )
